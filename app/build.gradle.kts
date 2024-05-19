@@ -58,6 +58,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview:1.0.0")
     implementation("androidx.navigation:navigation-compose:2.4.0-alpha06")
     implementation("androidx.activity:activity-compose:1.3.0-alpha08")
+    implementation("com.android.volley:volley:1.2.1")
+
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
