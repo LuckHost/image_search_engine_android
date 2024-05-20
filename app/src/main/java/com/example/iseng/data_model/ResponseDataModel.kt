@@ -4,7 +4,7 @@ import java.security.CodeSource
 
 data class ResponseDataModel(
     val searchParameters: SearchParameters,
-    val images: List<Image>,
+    val images: List<ResponseImageObject>,
 )
 
 data class SearchParameters(
@@ -13,7 +13,7 @@ data class SearchParameters(
     val num: Int,
 )
 
-data class Image(
+data class ResponseImageObject(
     val title: String,
     val imageUrl: String,
     val imageWidth: Int,

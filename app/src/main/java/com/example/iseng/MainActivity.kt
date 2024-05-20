@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.android.volley.Request
@@ -35,9 +37,16 @@ import com.android.volley.RequestQueue
 import com.android.volley.Response
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
+import com.example.iseng.data_model.ImageOutputObject
 import com.example.iseng.data_model.ResponseDataModel
+import com.example.iseng.data_model.ResponseImageObject
 import com.example.iseng.ui.theme.IsengTheme
 import com.google.gson.Gson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import loadImageBitmap
 import org.json.JSONObject
 
 const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217"
@@ -62,12 +71,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ImageObjects(context: Context) {
     val state = remember {
-        mutableStateListOf("aboba", "никакой абобы")
+        mutableStateListOf<ImageOutputObject>()
     }
     
     val items = state
     Column {
-        Button(onClick = { makePostRequest("yandex", state, context) }) {
+        Button(onClick = { makePostRequest("samsung", state, context) }) {
             
         }
         LazyColumn {
@@ -90,7 +99,9 @@ fun ImageObjects(context: Context) {
                                 .fillMaxWidth(0.5f),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(text = rowItems.first())
+                            Image(bitmap = rowItems.first().bitmap.asImageBitmap(),
+                                contentDescription = rowItems.first().title)
+
                         }
                     }
                     Card(
@@ -108,7 +119,8 @@ fun ImageObjects(context: Context) {
                                     .fillMaxWidth(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(text = rowItems.last())
+                                Image(bitmap = rowItems.last().bitmap.asImageBitmap(),
+                                    contentDescription = rowItems.last().title)
                             }
                         }
                     }
@@ -123,7 +135,8 @@ fun onError(s: String) {
 
 }
 
-fun makePostRequest(query: String, state: SnapshotStateList<String>, context: Context) {
+fun makePostRequest(query: String,
+                    state: SnapshotStateList<ImageOutputObject>, context: Context) {
     val url = "https://google.serper.dev/images"
     val apiKey = "b2ae647ad702b58b92d1c25d34841025f0b55217"
     val requestBody = JSONObject()
@@ -143,7 +156,16 @@ fun makePostRequest(query: String, state: SnapshotStateList<String>, context: Co
                 val gson = Gson()
                 val responseData: ResponseDataModel =
                     gson.fromJson(response.toString(), ResponseDataModel::class.java)
-                state.add(responseData.images.first().imageUrl)
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val images = convertRespDataToImageObject(responseData.images, context)
+                        withContext(Dispatchers.Main) {
+                            state.addAll(images)
+                        }
+                    } catch (e: Exception) {
+                        onError(e.message ?: "Error converting response data to image objects")
+                    }
+                }
             } catch (e: Exception) {
                 onError(e.message ?: "JSON parsing error")
             }
@@ -154,4 +176,28 @@ fun makePostRequest(query: String, state: SnapshotStateList<String>, context: Co
             Log.d("makePostRequest", ": $error")
         }
     )
+}
+
+suspend fun convertRespDataToImageObject(images: List<ResponseImageObject>, context: Context):
+        MutableList<ImageOutputObject> {
+    val output: MutableList<ImageOutputObject> = mutableListOf()
+    for(item in images) {
+        val loadBitmap = loadImageBitmap(item.imageUrl, context)
+        loadBitmap?.let {
+            val newImageObject = ImageOutputObject(
+                title = item.title,
+                bitmap = loadBitmap,
+                imageWidth = item.imageWidth,
+                imageHeight = item.imageHeight,
+                source = item.source,
+                link = item.link,
+                position = item.position,
+            )
+            output.add(newImageObject)
+        } ?: run {
+            // Этот блок выполнится, если myObject null
+            Log.d("Image converter", "Image is null")
+        }
+    }
+    return output
 }
