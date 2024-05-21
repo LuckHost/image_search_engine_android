@@ -1,42 +1,47 @@
 package com.example.iseng
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
+import android.util.DisplayMetrics
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import com.android.volley.Request
-import com.android.volley.RequestQueue
-import com.android.volley.Response
-import com.android.volley.toolbox.JsonObjectRequest
-import com.android.volley.toolbox.Volley
 import com.example.iseng.data_model.ImageOutputObject
 import com.example.iseng.data_model.ResponseDataModel
 import com.example.iseng.data_model.ResponseImageObject
@@ -47,6 +52,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import loadImageBitmap
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import coil.compose.AsyncImage
 import org.json.JSONObject
 
 const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217"
@@ -60,7 +68,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ImageObjects(this)
+                    MainScreen(context = this)
                 }
             }
         }
@@ -68,71 +76,75 @@ class MainActivity : ComponentActivity() {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun ImageObjects(context: Context) {
-    val state = remember {
+fun MainScreen(context: Context) {
+    val items = remember {
         mutableStateListOf<ImageOutputObject>()
     }
-    
-    val items = state
-    Column {
-        Button(onClick = { makePostRequest("samsung", state, context) }) {
-            
-        }
-        LazyColumn {
-            itemsIndexed(items.chunked(2)) { _, rowItems ->
-                Row(
 
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .fillMaxWidth()
+    var query by remember { mutableStateOf("Очень интересно Красноярск") }
 
-                ) {
-                    Card(
-                        modifier = Modifier
-                            .padding(10.dp),
-                        onClick = { /*TODO*/ },
-                        elevation = CardDefaults.cardElevation(
-                            defaultElevation  = 5.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.5f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(bitmap = rowItems.first().bitmap.asImageBitmap(),
-                                contentDescription = rowItems.first().title)
-
-                        }
-                    }
-                    Card(
-                        modifier = Modifier
-                            .padding(10.dp),
-                        onClick = { /*TODO*/ },
-                        elevation = CardDefaults.cardElevation(
-                            defaultElevation  = 5.dp)) {
-                        if (rowItems.size < 2) {
-                            Box(modifier = Modifier.weight(1f)) {}
-                        }
-                        else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(bitmap = rowItems.last().bitmap.asImageBitmap(),
-                                    contentDescription = rowItems.last().title)
-                            }
-                        }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("Enter the query") },
+                        maxLines = 2,
+                        modifier = Modifier.padding(20.dp),
+                    )
+                        },
+                actions = {
+                    IconButton(onClick = { makePostRequest(query, items, context) }) {
+                        Icon(imageVector = Icons.Filled.Search,
+                            contentDescription = "Search image")
                     }
                 }
-            }
-        }
+                )
+        }) {
+        ImageObjects(context = context, items)
     }
-    
 }
 
-fun onError(s: String) {
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImageObjects(context: Context,
+                 images: SnapshotStateList<ImageOutputObject>) {
+    LazyVerticalStaggeredGrid(
+        columns = StaggeredGridCells.Adaptive(200.dp),
+        verticalItemSpacing = 4.dp,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        content = {
+            items(images) { image ->
+                ImageItem(image)
+            }
+        }
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImageItem(image: ImageOutputObject) {
+    Card(
+        modifier = Modifier
+            .padding(8.dp),
+        onClick = { /*TODO*/ },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation  = 5.dp)) {
+        Box(
+            modifier = Modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            Image(bitmap = image.bitmap.asImageBitmap(),
+                modifier = Modifier.fillMaxSize().wrapContentHeight(),
+                contentDescription = image.title,
+                contentScale = ContentScale.Crop)
+
+        }
+    }
 }
 
 fun makePostRequest(query: String,
@@ -163,7 +175,8 @@ fun makePostRequest(query: String,
                             state.addAll(images)
                         }
                     } catch (e: Exception) {
-                        onError(e.message ?: "Error converting response data to image objects")
+                        onError(e.message ?:
+                        "Error converting response data to image objects")
                     }
                 }
             } catch (e: Exception) {
@@ -178,7 +191,12 @@ fun makePostRequest(query: String,
     )
 }
 
-suspend fun convertRespDataToImageObject(images: List<ResponseImageObject>, context: Context):
+fun onError(s: String) {
+    Log.d("OnError", s)
+}
+
+suspend fun convertRespDataToImageObject(images: List<ResponseImageObject>,
+                                         context: Context):
         MutableList<ImageOutputObject> {
     val output: MutableList<ImageOutputObject> = mutableListOf()
     for(item in images) {
