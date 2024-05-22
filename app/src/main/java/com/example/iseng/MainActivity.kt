@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -73,25 +72,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.modifier.modifierLocalConsumer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
-import coil.compose.rememberImagePainter
-import coil.request.ImageRequest
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import org.json.JSONObject
 import java.util.UUID
 
-const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217______"
-
-
+const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217"
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,7 +102,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(context: Context) {
     val items = remember {
-        mutableStateListOf<ResponseImageObject>()
+        mutableStateListOf<ImageOutputObject>()
     }
     var query by remember { mutableStateOf("Очень интересно Красноярск") }
     val coroutineScope = rememberCoroutineScope()
@@ -132,7 +120,7 @@ fun MainScreen(context: Context) {
                         maxLines = 2,
                         modifier = Modifier.padding(20.dp),
                     )
-                        },
+                },
                 actions = {
                     IconButton(onClick = {
                         currentPage = 2
@@ -143,16 +131,16 @@ fun MainScreen(context: Context) {
                             contentDescription = "Search image")
                     }
                 }
-                )
+            )
         }) {
 
         ImageObjects(images = items, loadMore = {
             coroutineScope.launch {
                 if (!isLoading) {
-                    Log.d("Pagination load more", "Loading new images started")
                     makePostRequest(query, currentPage,
                         items, context, isLoading = { isLoading = it })
                     currentPage++
+                    Log.d("loadMore", "More pictures loading is started")
                 }
             }
         })
@@ -166,7 +154,7 @@ fun MainScreen(context: Context) {
  * @param loadMore Unit, that will be called, when the grid comes to an end
  */
 @Composable
-fun ImageObjects(images: SnapshotStateList<ResponseImageObject>,
+fun ImageObjects(images: SnapshotStateList<ImageOutputObject>,
                  loadMore: () -> Unit) {
     val staggeredGridState = rememberLazyStaggeredGridState()
 
@@ -174,11 +162,8 @@ fun ImageObjects(images: SnapshotStateList<ResponseImageObject>,
         snapshotFlow { staggeredGridState.layoutInfo.visibleItemsInfo }
             .collect { visibleItemsInfo ->
                 if (visibleItemsInfo.isNotEmpty()) {
-                    val scrollIndex = visibleItemsInfo.minOf { it.index }
+                    val scrollIndex = visibleItemsInfo.maxOf { it.index }
                     if(images.size - scrollIndex - 5 <= 5){
-                        Log.d("Pagination load more",
-                            "first visible index $scrollIndex "+
-                                    "list size ${images.size}")
                         loadMore()
                     }
                 }
@@ -199,33 +184,27 @@ fun ImageObjects(images: SnapshotStateList<ResponseImageObject>,
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FullScreen(image: ResponseImageObject,
-               state: MutableState<Boolean>,
-               painter: Painter) {
+fun FullScreen(image: ImageOutputObject, state: MutableState<Boolean>) {
     Dialog(
         onDismissRequest = { state.value = false },
-        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false,
-            usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .padding(20.dp)
+        properties = DialogProperties(dismissOnBackPress = true,
+            dismissOnClickOutside = false, usePlatformDefaultWidth = false)
+    ){
+        Column(
+            modifier = Modifier.height(750.dp),
+            verticalArrangement= Arrangement.Center,
         ) {
-            Column {
-                Image(
-                    painter = painter,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight() // Ограничиваем размер изображения
-                        .padding(16.dp),
-                    contentDescription = image.title,
-                    contentScale = ContentScale.FillWidth
-                )
-                Text(text = image.title)
-                Text(text = image.source)
-            }
+            Text(text = image.title)
+            Text(text = image.source)
+            Image(
+                bitmap = image.bitmap.asImageBitmap(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentHeight(),
+                contentDescription = image.title,
+                contentScale = ContentScale.Crop
+            )
+
         }
     }
 }
@@ -239,16 +218,8 @@ fun FullScreen(image: ResponseImageObject,
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ImageItem(image: ResponseImageObject) {
+fun ImageItem(image: ImageOutputObject) {
     val showDialog = remember { mutableStateOf(false) }
-
-    val painter = rememberAsyncImagePainter(
-        "https://kartinki.pics/uploads/posts/2021-07/1625792456_11-kartinkin-" +
-                "com-p-anime-dlinnie-volosi-anime-krasivo-12.jpg"
-    )
-    // Добавим состояние для отслеживания загрузки изображения
-    val imageLoadState = remember  { derivedStateOf{painter.state} }
-
     Card(
         modifier = Modifier
             .padding(8.dp),
@@ -259,50 +230,34 @@ fun ImageItem(image: ResponseImageObject) {
             modifier = Modifier,
             contentAlignment = Alignment.Center
         ) {
-
-            when(imageLoadState.value) {
-                is AsyncImagePainter.State.Loading -> {
-                    // Отображаем индикатор загрузки, пока изображение загружается
-                    Text(text = "Loading")
-                }
-                is AsyncImagePainter.State.Success -> {
-                    // Когда изображение загружено успешно, отображаем его
-                    AsyncImage(model = image,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .wrapContentHeight(),
-                        contentDescription = image.title,
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                is AsyncImagePainter.State.Error -> {
-                    // Если возникла ошибка при загрузке изображения,
-                    // показываем сообщение об ошибке
-                    Text(text = "Ошибка загрузки изображения")
-                }
-                AsyncImagePainter.State.Empty -> TODO()
-            }
+            Image(bitmap = image.bitmap.asImageBitmap(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentHeight(),
+                contentDescription = image.title,
+                contentScale = ContentScale.Crop
+            )
         }
     }
     if (showDialog.value) {
-        FullScreen(image = image, showDialog, painter)
+        FullScreen(image = image, showDialog)
     }
 }
 
 
 fun makePostRequest(query: String,
                     page: Int,
-                    state: SnapshotStateList<ResponseImageObject>,
+                    state: SnapshotStateList<ImageOutputObject>,
                     context: Context,
                     isLoading: (Boolean) -> Unit) {
     val url = "https://google.serper.dev/images"
-    val apiKey = API_KEY
+    val apiKey = "b2ae647ad702b58b92d1c25d34841025f0b55217"
     val requestBody = JSONObject()
     requestBody.put("q", query)
     requestBody.put("location", "Russia")
     requestBody.put("gl", "ru")
     requestBody.put("hl", "ru")
-    requestBody.put("num", "10")
+    requestBody.put("num", "5")
     requestBody.put("page", page.toString())
 
     isLoading(true)
@@ -323,7 +278,7 @@ fun makePostRequest(query: String,
                         val images =
                             convertRespDataToImageObject(responseData.images, context)
                         withContext(Dispatchers.Main) {
-                            state.addAll(responseData.images)
+                            state.addAll(images)
                             isLoading(false)
                         }
                     } catch (e: Exception) {
@@ -336,7 +291,6 @@ fun makePostRequest(query: String,
                 onError(e.message ?: "JSON parsing error")
                 isLoading(false)
             }
-            Log.d("makePostRequest", ": $response")
         },
         onError = { error ->
             // Обработка ошибки
@@ -354,7 +308,6 @@ suspend fun convertRespDataToImageObject(images: List<ResponseImageObject>,
                                          context: Context):
         MutableList<ImageOutputObject> {
     val output: MutableList<ImageOutputObject> = mutableListOf()
-
     for(item in images) {
         val loadBitmap = loadImageBitmap(item.imageUrl, context)
         loadBitmap?.let {
