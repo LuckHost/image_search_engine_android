@@ -8,10 +8,14 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -54,8 +58,25 @@ import kotlinx.coroutines.withContext
 import loadImageBitmap
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.material.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCompositionContext
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import org.json.JSONObject
+import java.util.UUID
 
 const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217"
 class MainActivity : ComponentActivity() {
@@ -82,8 +103,10 @@ fun MainScreen(context: Context) {
     val items = remember {
         mutableStateListOf<ImageOutputObject>()
     }
-
     var query by remember { mutableStateOf("Очень интересно Красноярск") }
+    val coroutineScope = rememberCoroutineScope()
+    var currentPage by remember { mutableIntStateOf(1) }
+    var isLoading by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -98,21 +121,39 @@ fun MainScreen(context: Context) {
                     )
                         },
                 actions = {
-                    IconButton(onClick = { makePostRequest(query, items, context) }) {
+                    IconButton(onClick = {
+                        currentPage = 2
+                        makePostRequest(query, currentPage,
+                            items, context, isLoading = { isLoading = it })
+                    }) {
                         Icon(imageVector = Icons.Filled.Search,
                             contentDescription = "Search image")
                     }
                 }
                 )
         }) {
-        ImageObjects(context = context, items)
+
+        ImageObjects(images = items, loadMore = {
+            coroutineScope.launch {
+                if (!isLoading) {
+                    makePostRequest(query, currentPage,
+                        items, context, isLoading = { isLoading = it })
+                    currentPage++
+                }
+            }
+        })
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Grid of *ImageItem*
+ *
+ * @param images a list of ImageOutputObject to be displayed
+ * @param loadMore Unit, that will be called, when the grid comes to an end
+ */
 @Composable
-fun ImageObjects(context: Context,
-                 images: SnapshotStateList<ImageOutputObject>) {
+fun ImageObjects(images: SnapshotStateList<ImageOutputObject>,
+                 loadMore: () -> Unit) {
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Adaptive(200.dp),
         verticalItemSpacing = 4.dp,
@@ -120,6 +161,9 @@ fun ImageObjects(context: Context,
         content = {
             items(images) { image ->
                 ImageItem(image)
+                if(image.position - images.count() <= 5){
+                    loadMore()
+                }
             }
         }
     )
@@ -127,11 +171,46 @@ fun ImageObjects(context: Context,
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun FullScreen(image: ImageOutputObject, state: MutableState<Boolean>) {
+    Dialog(
+        onDismissRequest = { state.value = false },
+        properties = DialogProperties(dismissOnBackPress = true,
+            dismissOnClickOutside = false, usePlatformDefaultWidth = false)
+    ){
+        Column(
+            modifier = Modifier.height(750.dp),
+            verticalArrangement= Arrangement.Center,
+        ) {
+            Text(text = image.title)
+            Text(text = image.source)
+            Image(
+                bitmap = image.bitmap.asImageBitmap(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentHeight(),
+                contentDescription = image.title,
+                contentScale = ContentScale.Crop
+            )
+
+        }
+    }
+}
+
+/**
+ * A card with a picture
+ *
+ * @param image an object of the olaf class,
+ * which is then converted to Image()
+ *
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun ImageItem(image: ImageOutputObject) {
+    val showDialog = remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .padding(8.dp),
-        onClick = { /*TODO*/ },
+        onClick = { showDialog.value = true },
         elevation = CardDefaults.cardElevation(
             defaultElevation  = 5.dp)) {
         Box(
@@ -139,16 +218,25 @@ fun ImageItem(image: ImageOutputObject) {
             contentAlignment = Alignment.Center
         ) {
             Image(bitmap = image.bitmap.asImageBitmap(),
-                modifier = Modifier.fillMaxSize().wrapContentHeight(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentHeight(),
                 contentDescription = image.title,
-                contentScale = ContentScale.Crop)
-
+                contentScale = ContentScale.Crop
+            )
         }
+    }
+    if (showDialog.value) {
+        FullScreen(image = image, showDialog)
     }
 }
 
+
 fun makePostRequest(query: String,
-                    state: SnapshotStateList<ImageOutputObject>, context: Context) {
+                    page: Int,
+                    state: SnapshotStateList<ImageOutputObject>,
+                    context: Context,
+                    isLoading: (Boolean) -> Unit) {
     val url = "https://google.serper.dev/images"
     val apiKey = "b2ae647ad702b58b92d1c25d34841025f0b55217"
     val requestBody = JSONObject()
@@ -156,6 +244,10 @@ fun makePostRequest(query: String,
     requestBody.put("location", "Russia")
     requestBody.put("gl", "ru")
     requestBody.put("hl", "ru")
+    requestBody.put("num", "5")
+    requestBody.put("page", page.toString())
+
+    isLoading(true)
 
     postRequestWithVolley(
         context = context,
@@ -170,23 +262,28 @@ fun makePostRequest(query: String,
                     gson.fromJson(response.toString(), ResponseDataModel::class.java)
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
-                        val images = convertRespDataToImageObject(responseData.images, context)
+                        val images =
+                            convertRespDataToImageObject(responseData.images, context)
                         withContext(Dispatchers.Main) {
                             state.addAll(images)
+                            isLoading(false)
                         }
                     } catch (e: Exception) {
                         onError(e.message ?:
                         "Error converting response data to image objects")
+                        isLoading(false)
                     }
                 }
             } catch (e: Exception) {
                 onError(e.message ?: "JSON parsing error")
+                isLoading(false)
             }
             Log.d("makePostRequest", ": $response")
         },
         onError = { error ->
             // Обработка ошибки
             Log.d("makePostRequest", ": $error")
+            isLoading(false)
         }
     )
 }
