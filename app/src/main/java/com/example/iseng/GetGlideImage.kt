@@ -20,3 +20,5 @@ suspend fun loadImageBitmap(url: String, context: Context): Bitmap? {
         }
     }
 }
+
+
