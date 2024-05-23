@@ -1,5 +1,6 @@
 package com.example.iseng.data_model
 
+import java.io.Serializable
 import java.security.CodeSource
 
 data class ResponseDataModel(
@@ -21,4 +22,4 @@ data class ResponseImageObject(
     val source: String,
     val link: String,
     val position: Int,
-)
+) : Serializable

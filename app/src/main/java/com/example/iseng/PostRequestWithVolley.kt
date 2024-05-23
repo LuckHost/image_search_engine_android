@@ -1,14 +1,31 @@
 package com.example.iseng
+import android.annotation.SuppressLint
 import android.content.Context
-import com.android.volley.Request
+import android.util.Log
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.rememberAsyncImagePainter
 import com.android.volley.RequestQueue
 import com.android.volley.Response
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
+import com.example.iseng.data_model.ImageOutputObject
+import com.example.iseng.data_model.ResponseDataModel
+import com.example.iseng.data_model.ResponseImageObject
+import com.example.iseng.data_model.convertRespDataToImageObject
+import com.google.gson.Gson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import loadImageBitmap
 import org.json.JSONObject
-import java.io.File
 
-/*
+const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217"
+
 fun postRequestWithVolley(
     context: Context,
     url: String,
@@ -22,7 +39,7 @@ fun postRequestWithVolley(
 
     // Создание запроса
     val jsonObjectRequest = object : JsonObjectRequest(
-        Request.Method.POST,
+        Method.POST,
         url,
         requestBody,
         Response.Listener { response ->
@@ -48,9 +65,12 @@ fun postRequestWithVolley(
 
 }
 
+/**
+ * Fake request function
+ * It is needed in order not to waste API requests
  */
-
-fun postRequestWithVolley(
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+private fun postRequestWithVolleyImitation(
     context: Context,
     url: String,
     apiKey: String,
@@ -59,7 +79,6 @@ fun postRequestWithVolley(
     onError: (error: String) -> Unit
 ) {
 
-    // Прочитайте содержимое JSON файла в строку
     val jsonString = "{\n" +
             "    \"searchParameters\": {\n" +
             "        \"q\": \"apple inc\",\n" +
@@ -219,3 +238,49 @@ fun postRequestWithVolley(
     onSuccess(jsonObject)
 
 }
+
+fun makePostRequest(query: String,
+                    page: Int,
+                    state: SnapshotStateList<ResponseImageObject>,
+                    context: Context,
+                    isLoading: (Boolean) -> Unit) {
+    val url = "https://google.serper.dev/images"
+    val apiKey = API_KEY
+    val requestBody = JSONObject()
+    requestBody.put("q", query)
+    requestBody.put("location", "Russia")
+    requestBody.put("gl", "ru")
+    requestBody.put("hl", "ru")
+    requestBody.put("num", "10")
+    requestBody.put("page", page.toString())
+
+    isLoading(true)
+
+    postRequestWithVolleyImitation(
+        context = context,
+        url = url,
+        apiKey = apiKey,
+        requestBody = requestBody,
+        onSuccess = { response ->
+            // Обработка успешного ответа
+            try {
+                val gson = Gson()
+                val responseData: ResponseDataModel =
+                    gson.fromJson(response.toString(), ResponseDataModel::class.java)
+                CoroutineScope(Dispatchers.IO).launch {
+                    state.addAll(responseData.images)
+                    isLoading(false)
+                }
+            } catch (e: Exception) {
+                onError(e.message ?: "JSON parsing error")
+                isLoading(false)
+            }
+        },
+        onError = { error ->
+            // Обработка ошибки
+            Log.d("makePostRequest", ": $error")
+            isLoading(false)
+        }
+    )
+}
+

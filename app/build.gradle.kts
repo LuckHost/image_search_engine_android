@@ -50,17 +50,19 @@ android {
 }
 
 dependencies {
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.github.bumptech.glide:glide:4.12.0")
-    implementation("androidx.compose.ui:ui:1.0.0")
+
     implementation("io.coil-kt:coil-compose:2.1.0")
+    implementation("io.coil-kt:coil-gif:2.1.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.github.bumptech.glide:glide:4.12.0")
+    implementation("com.google.accompanist:accompanist-drawablepainter:0.28.0")
+
     implementation("androidx.compose.ui:ui:1.0.0")
     implementation("androidx.compose.material:material:1.0.0")
     implementation("androidx.compose.ui:ui-tooling-preview:1.0.0")
     implementation("androidx.navigation:navigation-compose:2.4.0-alpha06")
     implementation("androidx.activity:activity-compose:1.3.0-alpha08")
+
     implementation("com.android.volley:volley:1.2.1")
 
 
@@ -72,6 +74,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

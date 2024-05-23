@@ -2,23 +2,24 @@ package com.example.iseng
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
-import android.util.DisplayMetrics
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.material.OutlinedTextField
@@ -29,9 +30,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -43,66 +41,58 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import com.example.iseng.data_model.ImageOutputObject
-import com.example.iseng.data_model.ResponseDataModel
 import com.example.iseng.data_model.ResponseImageObject
 import com.example.iseng.ui.theme.IsengTheme
-import com.google.gson.Gson
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import loadImageBitmap
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.material.TextButton
-import androidx.compose.material3.AlertDialog
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Button
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.rememberCompositionContext
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
-import org.json.JSONObject
-import java.util.UUID
+import coil.ImageLoader
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import coil.size.Size
+import kotlin.math.min
 
-const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217"
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             IsengTheme {
-                // A surface container using the 'background' color from the theme
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    MainScreen(context = this)
-                }
+                MainScreen(context = this)
             }
         }
     }
 }
 
+/**
+ * Container of the main objects of this activity
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainScreen(context: Context) {
     val items = remember {
-        mutableStateListOf<ImageOutputObject>()
+        mutableStateListOf<ResponseImageObject>()
     }
     var query by remember { mutableStateOf("Очень интересно Красноярск") }
     val coroutineScope = rememberCoroutineScope()
@@ -112,6 +102,8 @@ fun MainScreen(context: Context) {
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = Modifier
+                    .padding(),
                 title = {
                     OutlinedTextField(
                         value = query,
@@ -123,7 +115,7 @@ fun MainScreen(context: Context) {
                 },
                 actions = {
                     IconButton(onClick = {
-                        currentPage = 2
+                        items.clear()
                         makePostRequest(query, currentPage,
                             items, context, isLoading = { isLoading = it })
                     }) {
@@ -132,29 +124,41 @@ fun MainScreen(context: Context) {
                     }
                 }
             )
-        }) {
-
-        ImageObjects(images = items, loadMore = {
-            coroutineScope.launch {
-                if (!isLoading) {
-                    makePostRequest(query, currentPage,
-                        items, context, isLoading = { isLoading = it })
-                    currentPage++
-                    Log.d("loadMore", "More pictures loading is started")
-                }
+        }) {paddingValues ->
+        Column(modifier = Modifier
+            .padding(paddingValues) // Stepping back from the topBar
+            ) {
+            if(!isLoading&&items.size==0){
+                GifImage(content = R.drawable.please_cat)
+                Text(text = "Please enter the query",
+                    textAlign = TextAlign.Center,)
             }
-        })
+            GridOfImages(images = items, loadMore = {
+                coroutineScope.launch {
+                    if (!isLoading) {
+                        makePostRequest(query, currentPage,
+                            items, context, isLoading = { isLoading = it })
+                        currentPage++
+                        Log.d("loadMore", "More pictures loading is started")
+                    }
+                }
+            })
+            if(isLoading) {
+                GifImage(R.drawable.loading_line)
+            }
+        }
+
     }
 }
 
 /**
  * Grid of *ImageItem*
  *
- * @param images a list of ImageOutputObject to be displayed
- * @param loadMore Unit, that will be called, when the grid comes to an end
+ * @param images the list of ImageOutputObject that will be displayed
+ * @param loadMore Unit that will be called when the grid comes to the end
  */
 @Composable
-fun ImageObjects(images: SnapshotStateList<ImageOutputObject>,
+fun GridOfImages(images: SnapshotStateList<ResponseImageObject>,
                  loadMore: () -> Unit) {
     val staggeredGridState = rememberLazyStaggeredGridState()
 
@@ -163,8 +167,9 @@ fun ImageObjects(images: SnapshotStateList<ImageOutputObject>,
             .collect { visibleItemsInfo ->
                 if (visibleItemsInfo.isNotEmpty()) {
                     val scrollIndex = visibleItemsInfo.maxOf { it.index }
-                    if(images.size - scrollIndex - 5 <= 5){
+                    if(images.size - scrollIndex - 8 <= 5){
                         loadMore()
+
                     }
                 }
             }
@@ -176,38 +181,111 @@ fun ImageObjects(images: SnapshotStateList<ImageOutputObject>,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         content = {
             items(images) { image ->
-                ImageItem(image)
+                val painter = rememberAsyncImagePainter(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(image.imageUrl)
+                        .size(coil.size.Size.ORIGINAL)
+                        .build()
+                )
+                if(painter.state is AsyncImagePainter.State.Success){
+                    ImageItem(image, painter, images)
+                }
             }
         }
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Creates an Image with a gif animation
+ *
+ * @param content Link for a .gif file
+ * (*R.drawable.funny_cat* for example)
+ */
 @Composable
-fun FullScreen(image: ImageOutputObject, state: MutableState<Boolean>) {
+fun GifImage(
+    content: Int,
+) {
+    val context = LocalContext.current
+    val imageLoader = ImageLoader.Builder(context)
+        .components {
+            if (SDK_INT >= 28) {
+                add(ImageDecoderDecoder.Factory())
+            } else {
+                add(GifDecoder.Factory())
+            }
+        }
+        .build()
+    Image(
+        painter = rememberAsyncImagePainter(
+            ImageRequest.Builder(context).data(data = content)
+                .apply(block = {
+                size(Size.ORIGINAL)
+            }).build(), imageLoader = imageLoader
+        ),
+        contentDescription = null,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+    )
+}
+
+@Composable
+fun OpenLinkButton(url: String) {
+    val context = LocalContext.current
+    val openLink: (url: String) -> Unit = {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse(url)
+        }
+        context.startActivity(intent)
+    }
+    Button(onClick = { openLink(url) }) {
+        Text(text = "Open Link")
+    }
+}
+
+/**
+ * Creates a dialog with an image and description
+ *
+ * @param image An ImageOutputObject object containing information about the image
+ * @param state the state that contains the bool value.
+ * True - the dialog is shown, False - it is not shown
+ */
+@Composable
+fun DialogScreen(image: ResponseImageObject, state: MutableState<Boolean>) {
     Dialog(
         onDismissRequest = { state.value = false },
         properties = DialogProperties(dismissOnBackPress = true,
             dismissOnClickOutside = false, usePlatformDefaultWidth = false)
     ){
-        Column(
-            modifier = Modifier.height(750.dp),
-            verticalArrangement= Arrangement.Center,
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(20.dp)
         ) {
-            Text(text = image.title)
-            Text(text = image.source)
-            Image(
-                bitmap = image.bitmap.asImageBitmap(),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .wrapContentHeight(),
-                contentDescription = image.title,
-                contentScale = ContentScale.Crop
-            )
+            Column {
+                Image(
+                    painter = rememberAsyncImagePainter(image.imageUrl),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight(),
+                    contentDescription = image.title,
+                    contentScale = if (image.imageWidth > image.imageHeight) {
+                        ContentScale.FillWidth
+                    } else {
+                        ContentScale.FillHeight
+                    }
+                )
+                Text(text = image.title)
+                OpenLinkButton(image.link)
 
+            }
         }
+
     }
 }
+
+
 
 /**
  * A card with a picture
@@ -218,113 +296,69 @@ fun FullScreen(image: ImageOutputObject, state: MutableState<Boolean>) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ImageItem(image: ImageOutputObject) {
+fun ImageItem(image: ResponseImageObject,
+              painter: AsyncImagePainter,
+              images: SnapshotStateList<ResponseImageObject>) {
     val showDialog = remember { mutableStateOf(false) }
+    val transition by animateFloatAsState(
+        targetValue = if (painter.state is AsyncImagePainter.State.Success) 1f else 0f, label = ""
+    )
     Card(
         modifier = Modifier
-            .padding(8.dp),
+            .padding(8.dp)
+            .width(40.dp),
         onClick = { showDialog.value = true },
-        elevation = CardDefaults.cardElevation(
-            defaultElevation  = 5.dp)) {
+        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
+    ) {
         Box(
             modifier = Modifier,
             contentAlignment = Alignment.Center
         ) {
-            Image(bitmap = image.bitmap.asImageBitmap(),
+            Image(
+                painter = painter,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .wrapContentHeight(),
+                    .scale(0.8f + 0.2f * transition)
+                    .graphicsLayer { rotationX = (1f - transition) * 5f }
+                    .alpha(min(1f, transition / 0.2f))
+                    .fillMaxSize(),
                 contentDescription = image.title,
-                contentScale = ContentScale.Crop
+                contentScale = if (image.imageWidth > image.imageHeight) {
+                    ContentScale.FillWidth
+                } else {
+                    ContentScale.FillHeight
+                }
             )
         }
     }
+
     if (showDialog.value) {
-        FullScreen(image = image, showDialog)
+        DialogScreen(image = image, showDialog)
     }
 }
 
 
-fun makePostRequest(query: String,
-                    page: Int,
-                    state: SnapshotStateList<ImageOutputObject>,
-                    context: Context,
-                    isLoading: (Boolean) -> Unit) {
-    val url = "https://google.serper.dev/images"
-    val apiKey = "b2ae647ad702b58b92d1c25d34841025f0b55217"
-    val requestBody = JSONObject()
-    requestBody.put("q", query)
-    requestBody.put("location", "Russia")
-    requestBody.put("gl", "ru")
-    requestBody.put("hl", "ru")
-    requestBody.put("num", "5")
-    requestBody.put("page", page.toString())
-
-    isLoading(true)
-
-    postRequestWithVolley(
-        context = context,
-        url = url,
-        apiKey = apiKey,
-        requestBody = requestBody,
-        onSuccess = { response ->
-            // Обработка успешного ответа
-            try {
-                val gson = Gson()
-                val responseData: ResponseDataModel =
-                    gson.fromJson(response.toString(), ResponseDataModel::class.java)
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        val images =
-                            convertRespDataToImageObject(responseData.images, context)
-                        withContext(Dispatchers.Main) {
-                            state.addAll(images)
-                            isLoading(false)
-                        }
-                    } catch (e: Exception) {
-                        onError(e.message ?:
-                        "Error converting response data to image objects")
-                        isLoading(false)
-                    }
-                }
-            } catch (e: Exception) {
-                onError(e.message ?: "JSON parsing error")
-                isLoading(false)
+@Composable
+fun ExcludeNonDownloadableImages(images: List<ResponseImageObject>) {
+    images.map { item ->
+        val painter = rememberAsyncImagePainter("https://www.example.com/image.jpg")
+        val imageLoadState = remember{ derivedStateOf{painter.state} }
+        when(imageLoadState.value) {
+            is AsyncImagePainter.State.Loading -> {}
+            is AsyncImagePainter.State.Success -> {
+                painter.let { item }
             }
-        },
-        onError = { error ->
-            // Обработка ошибки
-            Log.d("makePostRequest", ": $error")
-            isLoading(false)
+            is AsyncImagePainter.State.Error -> {
+                run { null }
+            }
+            AsyncImagePainter.State.Empty -> run { null }
         }
-    )
+    }
+    images.filterNotNull()
 }
 
+/**
+ * The stub function
+ */
 fun onError(s: String) {
     Log.d("OnError", s)
-}
-
-suspend fun convertRespDataToImageObject(images: List<ResponseImageObject>,
-                                         context: Context):
-        MutableList<ImageOutputObject> {
-    val output: MutableList<ImageOutputObject> = mutableListOf()
-    for(item in images) {
-        val loadBitmap = loadImageBitmap(item.imageUrl, context)
-        loadBitmap?.let {
-            val newImageObject = ImageOutputObject(
-                title = item.title,
-                bitmap = loadBitmap,
-                imageWidth = item.imageWidth,
-                imageHeight = item.imageHeight,
-                source = item.source,
-                link = item.link,
-                position = item.position,
-            )
-            output.add(newImageObject)
-        } ?: run {
-            // Этот блок выполнится, если myObject null
-            Log.d("Image converter", "Image is null")
-        }
-    }
-    return output
 }
