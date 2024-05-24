@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -60,7 +59,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.ImageLoader
@@ -68,7 +71,6 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
-import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import kotlin.math.min
@@ -108,9 +110,17 @@ fun MainScreen(context: Context) {
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        label = { Text("Enter the query") },
-                        maxLines = 2,
+                        label = { Text("Enter the query",
+                                fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,) },
+                        maxLines = 1,
                         modifier = Modifier.padding(20.dp),
+                        textStyle = TextStyle(
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.W400,
+                            fontSize = 16.sp,
+                        )
                     )
                 },
                 actions = {
@@ -126,12 +136,16 @@ fun MainScreen(context: Context) {
             )
         }) {paddingValues ->
         Column(modifier = Modifier
-            .padding(paddingValues) // Stepping back from the topBar
+            .padding(paddingValues), // Stepping back from the topBar
+            horizontalAlignment = Alignment.CenterHorizontally
             ) {
             if(!isLoading&&items.size==0){
                 GifImage(content = R.drawable.please_cat)
                 Text(text = "Please enter the query",
-                    textAlign = TextAlign.Center,)
+                    textAlign = TextAlign.Center,
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 16.sp,)
             }
             GridOfImages(images = items, loadMore = {
                 coroutineScope.launch {
@@ -149,6 +163,11 @@ fun MainScreen(context: Context) {
         }
 
     }
+}
+
+@Composable
+fun TopBar() {
+
 }
 
 /**
@@ -189,6 +208,8 @@ fun GridOfImages(images: SnapshotStateList<ResponseImageObject>,
                 )
                 if(painter.state is AsyncImagePainter.State.Success){
                     ImageItem(image, painter, images)
+                } else if (painter.state is AsyncImagePainter.State.Error){
+                    images.remove(image)
                 }
             }
         }
@@ -278,7 +299,6 @@ fun DialogScreen(image: ResponseImageObject, state: MutableState<Boolean>) {
                 )
                 Text(text = image.title)
                 OpenLinkButton(image.link)
-
             }
         }
 
@@ -303,11 +323,18 @@ fun ImageItem(image: ResponseImageObject,
     val transition by animateFloatAsState(
         targetValue = if (painter.state is AsyncImagePainter.State.Success) 1f else 0f, label = ""
     )
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .padding(8.dp)
             .width(40.dp),
-        onClick = { showDialog.value = true },
+        onClick = {
+            val intent = Intent(context, FullScreenImageActivity::class.java)
+            intent.putExtra("image", image)
+            val passList: List<ResponseImageObject> = images.toList()
+            intent.putExtra("images", ArrayList(passList))
+
+            context.startActivity(intent) },
         elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
     ) {
         Box(

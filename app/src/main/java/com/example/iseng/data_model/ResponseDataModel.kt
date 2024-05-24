@@ -23,3 +23,4 @@ data class ResponseImageObject(
     val link: String,
     val position: Int,
 ) : Serializable
+

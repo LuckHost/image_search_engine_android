@@ -8,7 +8,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
-
+/**
+ * Not used at the moment
+ *
+ * Returns bitmap or null by url link
+ *
+ * @param url link of an image
+ *
+ */
 suspend fun loadImageBitmap(url: String, context: Context): Bitmap? {
     return withContext(Dispatchers.IO) {
         try {
