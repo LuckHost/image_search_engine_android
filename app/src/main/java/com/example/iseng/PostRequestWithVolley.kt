@@ -256,7 +256,7 @@ fun makePostRequest(query: String,
 
     isLoading(true)
 
-    postRequestWithVolleyImitation(
+    postRequestWithVolley(
         context = context,
         url = url,
         apiKey = apiKey,

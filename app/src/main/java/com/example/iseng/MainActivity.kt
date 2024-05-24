@@ -165,11 +165,6 @@ fun MainScreen(context: Context) {
     }
 }
 
-@Composable
-fun TopBar() {
-
-}
-
 /**
  * Grid of *ImageItem*
  *
@@ -215,97 +210,6 @@ fun GridOfImages(images: SnapshotStateList<ResponseImageObject>,
         }
     )
 }
-
-/**
- * Creates an Image with a gif animation
- *
- * @param content Link for a .gif file
- * (*R.drawable.funny_cat* for example)
- */
-@Composable
-fun GifImage(
-    content: Int,
-) {
-    val context = LocalContext.current
-    val imageLoader = ImageLoader.Builder(context)
-        .components {
-            if (SDK_INT >= 28) {
-                add(ImageDecoderDecoder.Factory())
-            } else {
-                add(GifDecoder.Factory())
-            }
-        }
-        .build()
-    Image(
-        painter = rememberAsyncImagePainter(
-            ImageRequest.Builder(context).data(data = content)
-                .apply(block = {
-                size(Size.ORIGINAL)
-            }).build(), imageLoader = imageLoader
-        ),
-        contentDescription = null,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-    )
-}
-
-@Composable
-fun OpenLinkButton(url: String) {
-    val context = LocalContext.current
-    val openLink: (url: String) -> Unit = {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse(url)
-        }
-        context.startActivity(intent)
-    }
-    Button(onClick = { openLink(url) }) {
-        Text(text = "Open Link")
-    }
-}
-
-/**
- * Creates a dialog with an image and description
- *
- * @param image An ImageOutputObject object containing information about the image
- * @param state the state that contains the bool value.
- * True - the dialog is shown, False - it is not shown
- */
-@Composable
-fun DialogScreen(image: ResponseImageObject, state: MutableState<Boolean>) {
-    Dialog(
-        onDismissRequest = { state.value = false },
-        properties = DialogProperties(dismissOnBackPress = true,
-            dismissOnClickOutside = false, usePlatformDefaultWidth = false)
-    ){
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .padding(20.dp)
-        ) {
-            Column {
-                Image(
-                    painter = rememberAsyncImagePainter(image.imageUrl),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight(),
-                    contentDescription = image.title,
-                    contentScale = if (image.imageWidth > image.imageHeight) {
-                        ContentScale.FillWidth
-                    } else {
-                        ContentScale.FillHeight
-                    }
-                )
-                Text(text = image.title)
-                OpenLinkButton(image.link)
-            }
-        }
-
-    }
-}
-
-
 
 /**
  * A card with a picture
@@ -362,7 +266,6 @@ fun ImageItem(image: ResponseImageObject,
         DialogScreen(image = image, showDialog)
     }
 }
-
 
 @Composable
 fun ExcludeNonDownloadableImages(images: List<ResponseImageObject>) {
