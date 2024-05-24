@@ -11,12 +11,19 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.ImageLoader
@@ -113,4 +120,44 @@ fun DialogScreen(image: ResponseImageObject, state: MutableState<Boolean>) {
         }
 
     }
+}
+
+@Composable
+fun CustomTextField(value: String, onValueChange: (String) -> Unit) {
+    TextField(
+        value = value,
+        maxLines = 1,
+        onValueChange = onValueChange,
+        label = { Text("Enter the query here",
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,) },
+        colors = TextFieldDefaults.colors(
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.Gray,
+
+            focusedLabelColor = Color.Gray,
+            unfocusedLabelColor = Color.LightGray,
+
+
+            focusedIndicatorColor = Color.Gray,
+            unfocusedIndicatorColor = Color.LightGray,
+
+            disabledTextColor = Color.Gray,
+
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+
+            cursorColor = Color.White,
+
+
+            disabledIndicatorColor = Color.Transparent,
+            errorIndicatorColor = Color.Red,
+        ),
+        textStyle = TextStyle(
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.W600,
+            fontSize = 18.sp,
+        )
+    )
 }

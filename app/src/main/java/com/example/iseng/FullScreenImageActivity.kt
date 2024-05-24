@@ -1,9 +1,10 @@
 package com.example.iseng
 
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,16 +13,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -33,46 +29,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.ImageLoader
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
-import com.example.iseng.data_model.ImageOutputObject
 import com.example.iseng.data_model.ResponseImageObject
 import com.example.iseng.ui.theme.IsengTheme
 import com.google.accompanist.pager.ExperimentalPagerApi
 import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.rememberPagerState
-import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
-import kotlin.math.min
 
 class FullScreenImageActivity : ComponentActivity() {
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val image = intent.getSerializableExtra("image") as ResponseImageObject
-        val passList = intent.getSerializableExtra("images") as? ArrayList<ResponseImageObject>
+        val image = intent.getSerializableExtra("image", ResponseImageObject::class.java)
+        val passList = intent.getSerializableExtra("images")
+                as? ArrayList<ResponseImageObject>
         val images = passList?.toSnapshotStateList()
         setContent {
             IsengTheme {
-                if (images != null) {
-                    MainScreen(image, images)
+                if (images != null && image != null) {
+                    MainScreen(image, images) { finish() }
                 }
             }
         }
@@ -82,24 +67,18 @@ class FullScreenImageActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(image: ResponseImageObject,
-               images: SnapshotStateList<ResponseImageObject>) {
-    val painter = rememberAsyncImagePainter(
-        model = ImageRequest.Builder(LocalContext.current)
-            .data(image.imageUrl)
-            .size(Size.ORIGINAL)
-            .build()
-    )
+               images: SnapshotStateList<ResponseImageObject>,
+               onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
                 modifier = Modifier
                     .padding(),
                 title = {},
-                actions = {
-                    IconButton(onClick = {
-
+                navigationIcon = {
+                    IconButton(onClick = { onBack()
                     }) {
-                        Icon(imageVector = Icons.Filled.Search,
+                        Icon(imageVector = Icons.Filled.ArrowBack,
                             contentDescription = "Search image")
                     }
                 }
@@ -107,61 +86,33 @@ fun MainScreen(image: ResponseImageObject,
         }) {paddingValues ->
         Column(modifier = Modifier
             .padding(paddingValues),
-            verticalArrangement = Arrangement.Top,// Stepping back from the topBar
+            verticalArrangement = Arrangement.Top,
         ) {
-            ImageCarousel(items = images)
+            ImageCarousel(
+                imagePicked = image,
+                items = images)
         }
 
     }
 }
 
-@Composable
-fun ImageList(images: SnapshotStateList<ResponseImageObject>) {
-    LazyRow(
-        modifier = Modifier.fillMaxSize(),
-        content = {
-            items(images) { image ->
-                val painter = rememberAsyncImagePainter(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(image.imageUrl)
-                        .size(coil.size.Size.ORIGINAL)
-                        .build()
-                )
-                Box(
-                    modifier = Modifier
-                        .fillParentMaxWidth()
-                        .aspectRatio(1f)
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painter,
-                        contentDescription = image.title,
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = if (image.imageWidth > image.imageHeight) {
-                            ContentScale.FillWidth
-                        } else {
-                            ContentScale.FillHeight
-                        }
-                    )
-                }
-            }
-        }
-    )
-}
-
+/**
+ * This feature allows you to show images with a description and a link to the source.
+ * Each of them is shown separately. You can scroll through them among themselves.
+ */
 @OptIn(ExperimentalPagerApi::class)
 @Composable
-fun ImageCarousel(items: List<ResponseImageObject>) {
-    val pagerState = rememberPagerState()
+fun ImageCarousel(imagePicked: ResponseImageObject,
+                  items: List<ResponseImageObject>) {
     var images by remember { mutableStateOf(items) }
+    val firstImageToShowIndex = images.indexOf(imagePicked)
+    val pagerState = rememberPagerState(initialPage = firstImageToShowIndex)
 
     HorizontalPager(
         count = images.size,
         state = pagerState,
         modifier = Modifier.fillMaxWidth()
     ) { page ->
-
         val image = images[page]
         val painter = rememberAsyncImagePainter(
             model = ImageRequest.Builder(LocalContext.current)
@@ -174,7 +125,6 @@ fun ImageCarousel(items: List<ResponseImageObject>) {
         )
         val painterState = painter.state
 
-        // Убираем изображение, если произошла ошибка загрузки
         if (painterState is AsyncImagePainter.State.Error) {
             images = images.toMutableList().apply { removeAt(page) }
         } else {
@@ -201,7 +151,7 @@ fun ImageCarousel(items: List<ResponseImageObject>) {
                                 .fillMaxSize()
                                 .padding(16.dp),
                                 verticalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "${page}",
+                                Text(text = "$page",
                                     fontFamily = FontFamily.SansSerif,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 17.sp,)
@@ -228,9 +178,6 @@ fun ImageCarousel(items: List<ResponseImageObject>) {
                                     modifier = Modifier.fillMaxWidth())
                             }
                         }
-                    }
-                    is AsyncImagePainter.State.Error -> {
-                        Text(text = "Error loading image")
                     }
                     else -> {}
                 }

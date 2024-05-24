@@ -3,29 +3,23 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.ui.platform.LocalContext
-import coil.compose.rememberAsyncImagePainter
 import com.android.volley.RequestQueue
 import com.android.volley.Response
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
-import com.example.iseng.data_model.ImageOutputObject
 import com.example.iseng.data_model.ResponseDataModel
 import com.example.iseng.data_model.ResponseImageObject
-import com.example.iseng.data_model.convertRespDataToImageObject
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import loadImageBitmap
 import org.json.JSONObject
 
 const val API_KEY="b2ae647ad702b58b92d1c25d34841025f0b55217"
 
+/**
+ * The function of requests via the Volley library
+ */
 fun postRequestWithVolley(
     context: Context,
     url: String,
@@ -34,24 +28,18 @@ fun postRequestWithVolley(
     onSuccess: (response: JSONObject) -> Unit,
     onError: (error: String) -> Unit
 ) {
-    // Создание очереди запросов
     val requestQueue: RequestQueue = Volley.newRequestQueue(context)
-
-    // Создание запроса
     val jsonObjectRequest = object : JsonObjectRequest(
         Method.POST,
         url,
         requestBody,
         Response.Listener { response ->
-            // Обработка успешного ответа
             onSuccess(response)
         },
         Response.ErrorListener { error ->
-            // Обработка ошибки
             onError(error.message ?: "Unknown error")
         }
     ) {
-        // Добавление заголовков
         override fun getHeaders(): Map<String, String> {
             val headers = HashMap<String, String>()
             headers["Content-Type"] = "application/json"
@@ -59,15 +47,14 @@ fun postRequestWithVolley(
             return headers
         }
     }
-
-    // Добавление запроса в очередь
     requestQueue.add(jsonObjectRequest)
-
 }
 
 /**
  * Fake request function
  * It is needed in order not to waste API requests
+ *
+ * Only for development and debugging
  */
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 private fun postRequestWithVolleyImitation(
@@ -78,6 +65,7 @@ private fun postRequestWithVolleyImitation(
     onSuccess: (response: JSONObject) -> Unit,
     onError: (error: String) -> Unit
 ) {
+    Log.d("postRequestImitation", "input values: $url $apiKey")
 
     val jsonString = "{\n" +
             "    \"searchParameters\": {\n" +
@@ -233,11 +221,21 @@ private fun postRequestWithVolleyImitation(
             "    ]\n" +
             "}"
 
-    // Создайте JSONObject из строки
     val jsonObject = JSONObject(jsonString)
     onSuccess(jsonObject)
 
 }
+
+/**
+ * A post request function that adds the result
+ * that was received from the server to the sheet given to it
+ *
+ * @param query Request name
+ * @param page The number of the desired page
+ * @param state The list to which new items will be added
+ * @param isLoading A Boolean value that makes it clear
+ * whether the download is currently in progress
+ */
 
 fun makePostRequest(query: String,
                     page: Int,
@@ -251,9 +249,8 @@ fun makePostRequest(query: String,
     requestBody.put("location", "Russia")
     requestBody.put("gl", "ru")
     requestBody.put("hl", "ru")
-    requestBody.put("num", "10")
+    requestBody.put("num", "15")
     requestBody.put("page", page.toString())
-
     isLoading(true)
 
     postRequestWithVolley(
@@ -262,7 +259,6 @@ fun makePostRequest(query: String,
         apiKey = apiKey,
         requestBody = requestBody,
         onSuccess = { response ->
-            // Обработка успешного ответа
             try {
                 val gson = Gson()
                 val responseData: ResponseDataModel =
@@ -277,7 +273,6 @@ fun makePostRequest(query: String,
             }
         },
         onError = { error ->
-            // Обработка ошибки
             Log.d("makePostRequest", ": $error")
             isLoading(false)
         }

@@ -1,27 +1,22 @@
 package com.example.iseng
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -48,29 +43,27 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Button
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import coil.ImageLoader
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import coil.size.Size
 import kotlin.math.min
@@ -80,19 +73,44 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             IsengTheme {
-                MainScreen(context = this)
+                MainScreen()
             }
         }
     }
 }
 
 /**
- * Container of the main objects of this activity
+ * Container of the background and TopPanelWithGrid
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun MainScreen(context: Context) {
+fun MainScreen() {
+    Box(
+        modifier = with (Modifier){
+            fillMaxSize()
+                .paint(
+                    // Replace with your image id
+                    painterResource(id = R.drawable.main_bg),
+                    contentScale = ContentScale.FillBounds)
+
+        })
+    {
+        // Add more views here!
+        TopPanelWithGrid()
+    }
+
+}
+
+
+/**
+ * The second main function
+ * Contains all objects of this activity
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true)
+@Composable
+fun TopPanelWithGrid() {
+    val context = LocalContext.current
     val items = remember {
         mutableStateListOf<ResponseImageObject>()
     }
@@ -100,28 +118,27 @@ fun MainScreen(context: Context) {
     val coroutineScope = rememberCoroutineScope()
     var currentPage by remember { mutableIntStateOf(1) }
     var isLoading by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
     Scaffold(
+        modifier = Modifier
+            .pointerInput(Unit) {
+            detectTapGestures(onTap = {
+                focusManager.clearFocus()
+            })},
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent
+                ),
                 modifier = Modifier
                     .padding(),
                 title = {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        label = { Text("Enter the query",
-                                fontFamily = FontFamily.SansSerif,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,) },
-                        maxLines = 1,
-                        modifier = Modifier.padding(20.dp),
-                        textStyle = TextStyle(
-                            fontFamily = FontFamily.SansSerif,
-                            fontWeight = FontWeight.W400,
-                            fontSize = 16.sp,
-                        )
-                    )
+                    CustomTextField(value = query,
+                        onValueChange = {
+                            query = it
+                        })
                 },
                 actions = {
                     IconButton(onClick = {
@@ -134,12 +151,12 @@ fun MainScreen(context: Context) {
                     }
                 }
             )
-        }) {paddingValues ->
+        }) { paddingValues ->
         Column(modifier = Modifier
             .padding(paddingValues), // Stepping back from the topBar
             horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-            if(!isLoading&&items.size==0){
+        ) {
+            if(!isLoading && items.size==0){
                 GifImage(content = R.drawable.please_cat)
                 Text(text = "Please enter the query",
                     textAlign = TextAlign.Center,
@@ -198,13 +215,11 @@ fun GridOfImages(images: SnapshotStateList<ResponseImageObject>,
                 val painter = rememberAsyncImagePainter(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(image.imageUrl)
-                        .size(coil.size.Size.ORIGINAL)
+                        .size(Size.ORIGINAL)
                         .build()
                 )
                 if(painter.state is AsyncImagePainter.State.Success){
                     ImageItem(image, painter, images)
-                } else if (painter.state is AsyncImagePainter.State.Error){
-                    images.remove(image)
                 }
             }
         }
@@ -225,8 +240,8 @@ fun ImageItem(image: ResponseImageObject,
               images: SnapshotStateList<ResponseImageObject>) {
     val showDialog = remember { mutableStateOf(false) }
     val transition by animateFloatAsState(
-        targetValue = if (painter.state is AsyncImagePainter.State.Success) 1f else 0f, label = ""
-    )
+        targetValue = if (painter.state is AsyncImagePainter.State.Success)
+            1f else 0f, label = "")
     val context = LocalContext.current
     Card(
         modifier = Modifier
@@ -265,25 +280,6 @@ fun ImageItem(image: ResponseImageObject,
     if (showDialog.value) {
         DialogScreen(image = image, showDialog)
     }
-}
-
-@Composable
-fun ExcludeNonDownloadableImages(images: List<ResponseImageObject>) {
-    images.map { item ->
-        val painter = rememberAsyncImagePainter("https://www.example.com/image.jpg")
-        val imageLoadState = remember{ derivedStateOf{painter.state} }
-        when(imageLoadState.value) {
-            is AsyncImagePainter.State.Loading -> {}
-            is AsyncImagePainter.State.Success -> {
-                painter.let { item }
-            }
-            is AsyncImagePainter.State.Error -> {
-                run { null }
-            }
-            AsyncImagePainter.State.Empty -> run { null }
-        }
-    }
-    images.filterNotNull()
 }
 
 /**
