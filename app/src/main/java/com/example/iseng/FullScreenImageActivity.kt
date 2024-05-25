@@ -9,7 +9,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -50,7 +49,8 @@ class FullScreenImageActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val image = intent.getSerializableExtra("image", ResponseImageObject::class.java)
+        val image = intent.getSerializableExtra("image",
+            ResponseImageObject::class.java)
         val passList = intent.getSerializableExtra("images")
                 as? ArrayList<ResponseImageObject>
         val images = passList?.toSnapshotStateList()
@@ -125,66 +125,46 @@ fun ImageCarousel(imagePicked: ResponseImageObject,
         )
         val painterState = painter.state
 
-        if (painterState is AsyncImagePainter.State.Error) {
+        if (painterState is AsyncImagePainter.State.Error ||
+            painterState is AsyncImagePainter.State.Loading) {
             images = images.toMutableList().apply { removeAt(page) }
         } else {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .padding(16.dp),
+                    .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                when (painterState) {
-                    is AsyncImagePainter.State.Loading -> {
-                        images = images.toMutableList().apply { removeAt(page) }
-                    }
-                    is AsyncImagePainter.State.Success -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .aspectRatio(1f)
-                                .padding(16.dp),
-                            contentAlignment = Alignment.TopCenter
-                        ) {
-                            Column(modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                                verticalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "$page",
-                                    fontFamily = FontFamily.SansSerif,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,)
-                                Image(
-                                    painter = painter,
-                                    contentDescription = image.title,
-                                    modifier = Modifier
-                                        .weight(1f),
-                                    contentScale = if (image.imageWidth > image.imageHeight) {
-                                        ContentScale.FillWidth
-                                    } else {
-                                        ContentScale.FillHeight
-                                    }
-                                )
-                                Text(text = "Title: ${image.title}",
-                                    fontFamily = FontFamily.SansSerif,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,)
-                                Text(text = "Source: ${image.source}",
-                                    fontFamily = FontFamily.SansSerif,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,)
-                                OpenLinkButton(image.link,
-                                    modifier = Modifier.fillMaxWidth())
-                            }
+                Column(modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                    verticalArrangement = Arrangement.SpaceBetween) {
+                    Image(
+                        painter = painter,
+                        contentDescription = image.title,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        contentScale = if (image.imageWidth > image.imageHeight) {
+                            ContentScale.FillWidth
+                        } else {
+                            ContentScale.FillHeight
                         }
-                    }
-                    else -> {}
+                    )
+                    Text(text = "Title: ${image.title}",
+                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,)
+                    Text(text = "Source: ${image.source}",
+                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,)
+                    OpenLinkButton(image.link,
+                        modifier = Modifier.fillMaxWidth())
+
                 }
             }
         }
-
-
     }
 }
 

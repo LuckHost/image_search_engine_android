@@ -64,6 +64,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import kotlin.math.min
@@ -119,6 +120,7 @@ fun TopPanelWithGrid() {
     var currentPage by remember { mutableIntStateOf(1) }
     var isLoading by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    var firstSearch = true
 
     Scaffold(
         modifier = Modifier
@@ -153,16 +155,24 @@ fun TopPanelWithGrid() {
             )
         }) { paddingValues ->
         Column(modifier = Modifier
-            .padding(paddingValues), // Stepping back from the topBar
+            .padding(paddingValues),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val catText: String
+            if(firstSearch) {
+                catText = "Please enter the query"
+                firstSearch = false
+            } else {
+                catText = "It seems that nothing was found! Try again or change the query"
+            }
             if(!isLoading && items.size==0){
                 GifImage(content = R.drawable.please_cat)
-                Text(text = "Please enter the query",
+                Text(text = catText,
                     textAlign = TextAlign.Center,
                     fontFamily = FontFamily.SansSerif,
-                    fontWeight = FontWeight.W600,
-                    fontSize = 16.sp,)
+                    fontWeight = FontWeight.W500,
+                    fontSize = 18.sp,
+                    color = Color.White)
             }
             GridOfImages(images = items, loadMore = {
                 coroutineScope.launch {
@@ -175,7 +185,7 @@ fun TopPanelWithGrid() {
                 }
             })
             if(isLoading) {
-                GifImage(R.drawable.loading_line)
+                GifImage(R.drawable.loading_cat)
             }
         }
 
@@ -216,6 +226,9 @@ fun GridOfImages(images: SnapshotStateList<ResponseImageObject>,
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(image.imageUrl)
                         .size(Size.ORIGINAL)
+                        .networkCachePolicy(CachePolicy.ENABLED)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.DISABLED)
                         .build()
                 )
                 if(painter.state is AsyncImagePainter.State.Success){

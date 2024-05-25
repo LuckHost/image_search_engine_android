@@ -122,6 +122,9 @@ fun DialogScreen(image: ResponseImageObject, state: MutableState<Boolean>) {
     }
 }
 
+/**
+ * It looks like a regular TextField, but with changed colors
+ */
 @Composable
 fun CustomTextField(value: String, onValueChange: (String) -> Unit) {
     TextField(
